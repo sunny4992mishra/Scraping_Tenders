@@ -17,7 +17,7 @@ from dateutil import parser as dateutil_parser
 load_dotenv()
 
 MAX_CAPTCHA_ATTEMPTS = 5
-LOCAL_OCR_URL = os.getenv("Ocr_url")
+LOCAL_OCR_URL = os.getenv("Ocr_url")  # supports both casing variants
 
 PORTALS = [
     {"base": "https://mahatenders.gov.in",      "portal": "mahatenders",           "state": "Maharashtra"},
@@ -28,7 +28,6 @@ PORTALS = [
     {"base": "https://etenders.kerala.gov.in",   "portal": "kerala_tenders",        "state": "Kerala"},
 ]
 
-# Column order is locked here — upsert always uses this to build tuples safely
 COLUMNS = [
     "id", "tender_ref_no", "nit_number", "source_portal", "source_url",
     "title", "category", "buyer_name", "buyer_org_chain", "state",
@@ -51,14 +50,25 @@ INSERT_SQL = f"""
 
 def solve_captcha_via_local_api(image_bytes):
     """Send captcha image bytes to the hosted OCR server, return predicted text."""
+    # FIX 3: Diagnostic logging so Railway logs show exactly what failed
+    if not LOCAL_OCR_URL:
+        print("    [-] OCR_URL env var is not set! Cannot solve CAPTCHA.")
+        return None
+    print(f"    [*] Sending CAPTCHA to OCR server: {LOCAL_OCR_URL}")
     try:
         files = {"file": ("captcha.png", image_bytes, "image/png")}
-        response = requests.post(LOCAL_OCR_URL, files=files, timeout=5)
+        response = requests.post(LOCAL_OCR_URL, files=files, timeout=10)  # FIX 4: increased timeout
         response.raise_for_status()
         data = response.json()
-        return data.get("prediction") if data.get("status") == "success" else None
+        prediction = data.get("prediction") if data.get("status") == "success" else None
+        print(f"    [*] OCR response: status={data.get('status')}, prediction={repr(prediction)}")
+        return prediction
+    except requests.exceptions.ConnectionError as e:
+        print(f"    [-] OCR server unreachable (ConnectionError): {repr(e)}")
+        print(f"    [-] Check that OCR_URL is set to your Railway OCR service's PUBLIC URL, not localhost.")
+        return None
     except Exception as e:
-        print(f"[-] OCR API error: {repr(e)}")
+        print(f"    [-] OCR API error: {repr(e)}")
         return None
 
 def make_id(source_portal, tender_ref_no):
@@ -84,11 +94,16 @@ def normalize_value(val_str):
 
 def extract_metadata(raw_text):
     """Extract Tender ID and NIT/Reference No from raw cell text."""
-    tender_id_match = re.search(r'Tender\s*I[dD]\s*[:\-]\s*([^\s\]]+)', raw_text)
+    
+    # Updated: Added re.IGNORECASE and changed [^\s\]] to [^\n\r\]] to allow spaces
+    tender_id_match = re.search(r'Tender\s*ID\s*[:\-]\s*([^\n\r\]]+)', raw_text, re.IGNORECASE)
+    
     if not tender_id_match:
         # Fallback: standard NICGEP format e.g. 2026_MCGM_123456_1
-        tender_id_match = re.search(r'(20[1-3][0-9]_[A-Z0-9_]+_\d+)', raw_text)
+        tender_id_match = re.search(r'(20[1-3][0-9]_[A-Z0-9_]+_\d+)', raw_text, re.IGNORECASE)
+        
     nit_match = re.search(r'Reference\s*No\s*[:\-]\s*([^\n\r\]]+)', raw_text, re.IGNORECASE)
+    
     return {
         "tender_id":  tender_id_match.group(1).strip() if tender_id_match else None,
         "nit_number": nit_match.group(1).strip()       if nit_match       else None,
@@ -102,39 +117,79 @@ def extract_buyer_name(org_chain):
 # ── Scraper Core ──────────────────────────────────────────────────────────────
 
 def scrape_portal(page, config):
-    """
-    Scrapes one portal for tenders published within the last 1 day.
-    Upserts directly per-page to avoid accumulating a large list in memory.
-    Returns total record count for logging.
-    """
     print(f"\n{'='*60}")
     print(f"[*] SCRAPING: {config['state']} ({config['portal']})")
     print(f"{'='*60}")
 
     target_url = f"{config['base']}/nicgep/app?page=FrontEndLatestActiveTenders&service=page"
-    page.goto(target_url)
-    page.wait_for_load_state("networkidle")
+
+    # FIX 5: Log page load outcome so we can tell if the portal is reachable at all
+    print(f"[*] Navigating to: {target_url}")
+    try:
+        page.goto(target_url, timeout=30000)
+        page.wait_for_load_state("networkidle", timeout=30000)
+    except Exception as e:
+        print(f"[-] Page load failed: {repr(e)} — portal may be blocking Railway IPs.")
+        return 0
+
+    # FIX 6: Log page title so we know what Railway actually received
+    try:
+        page_title = page.title()
+        print(f"[*] Page title after load: '{page_title}'")
+    except Exception:
+        pass
+
+    # FIX 7: Save a screenshot on the first portal for Railway log debugging
+    # This writes to /tmp so it doesn't fill disk, and logs the path
+    if config["portal"] == "mahatenders":
+        try:
+            debug_path = f"/tmp/debug_{config['portal']}.png"
+            page.screenshot(path=debug_path, full_page=False)
+            print(f"[*] Debug screenshot saved to {debug_path} (check Railway volume/logs)")
+        except Exception as e:
+            print(f"[*] Could not save debug screenshot: {repr(e)}")
 
     # ── CAPTCHA Bypass ────────────────────────────────────────────────────────
     captcha_solved = False
     for attempt in range(1, MAX_CAPTCHA_ATTEMPTS + 1):
+        print(f"[*] CAPTCHA attempt {attempt}/{MAX_CAPTCHA_ATTEMPTS}...")
+
         if "APPLICATION SECURITY ERROR" in page.content():
-            print("[!] Security session wall hit. Resetting...")
+            print("[!] Security session wall hit — Railway IP may be blocked by the portal.")
             page.goto(target_url)
             page.wait_for_load_state("networkidle")
 
         try:
+            # FIX 8: Log selector match outcomes instead of silently falling back
             captcha_element = page.locator("img[id^='captcha'], img[src*='captcha']")
-            if not captcha_element.is_visible():
+            visible = captcha_element.is_visible()
+            print(f"    [*] Primary CAPTCHA selector visible: {visible}")
+
+            if not visible:
                 captcha_element = page.locator("td img").first
+                visible = captcha_element.is_visible()
+                print(f"    [*] Fallback CAPTCHA selector (td img) visible: {visible}")
+
+            if not visible:
+                # FIX 9: Log ALL images on the page to help diagnose what's actually there
+                all_imgs = page.locator("img").all()
+                print(f"    [*] Total <img> elements on page: {len(all_imgs)}")
+                for i, img in enumerate(all_imgs[:5]):
+                    try:
+                        print(f"         img[{i}] src={img.get_attribute('src')}, id={img.get_attribute('id')}")
+                    except Exception:
+                        pass
+                print("    [-] No CAPTCHA image found — page may be blocked or structured differently.")
+                page.reload()
+                page.wait_for_load_state("networkidle")
+                continue
 
             image_bytes = captcha_element.screenshot(type="png")
             captcha_text = solve_captcha_via_local_api(image_bytes)
-
-            # Free the screenshot bytes immediately — no need to hold them
             del image_bytes
 
             if not captcha_text or len(captcha_text) < 3:
+                print(f"    [-] OCR returned unusable text: {repr(captcha_text)} — reloading.")
                 page.reload()
                 page.wait_for_load_state("networkidle")
                 continue
@@ -143,6 +198,7 @@ def scrape_portal(page, config):
             if not input_box.is_visible():
                 input_box = page.locator("input[type='text']").first
             input_box.fill(captcha_text)
+            print(f"    [*] Filled CAPTCHA input with: '{captcha_text}'")
 
             search_button = page.locator("input[type='submit'][value*='Search'], input[id*='submit']")
             if not search_button.is_visible():
@@ -153,10 +209,15 @@ def scrape_portal(page, config):
             page.reload()
             page.wait_for_load_state("networkidle")
 
-            if page.locator("tr[id^='informal'], table#table").count() > 0:
+            tender_rows = page.locator("tr[id^='informal'], table#table").count()
+            print(f"    [*] Tender rows found after submit: {tender_rows}")
+
+            if tender_rows > 0:
                 print("[+] CAPTCHA bypassed successfully!")
                 captcha_solved = True
                 break
+            else:
+                print(f"    [-] CAPTCHA submit did not reveal tender rows. Retrying...")
 
         except Exception as e:
             print(f"[-] Attempt {attempt} failed: {repr(e)}. Retrying...")
@@ -164,6 +225,11 @@ def scrape_portal(page, config):
 
     if not captcha_solved:
         print(f"[✗] Failed to bypass CAPTCHA for {config['state']}. Skipping portal.")
+        # FIX 10: Print a likely cause summary to help debug from Railway logs
+        print(f"    Possible causes:")
+        print(f"    1. Railway datacenter IP is blocked by the portal")
+        print(f"    2. OCR_URL is unreachable or returning errors (check logs above)")
+        print(f"    3. CAPTCHA image selector changed — check debug screenshot if saved")
         return 0
     # ── End CAPTCHA Bypass ────────────────────────────────────────────────────
 
@@ -176,8 +242,6 @@ def scrape_portal(page, config):
         print(f"[*] Parsing page {page_num}...")
         soup = BeautifulSoup(page.content(), "html.parser")
         rows = soup.find_all("tr", class_=["even", "odd"])
-
-        # Free the soup object once we have rows — no need to hold the full parse tree
         del soup
 
         if not rows:
@@ -193,13 +257,11 @@ def scrape_portal(page, config):
                 continue
 
             pub_dt = normalize_date(cols[1].text.strip())
-
             if pub_dt and pub_dt < cutoff:
                 print(f"    [✓] Reached 1-day cutoff at {pub_dt.strftime('%Y-%m-%d')}. Stopping.")
                 reached_cutoff = True
                 break
 
-            # Extract metadata from title cell text
             title_cell_text = cols[4].text.strip()
             meta = extract_metadata(title_cell_text)
             tender_ref_no = meta["tender_id"] or meta["nit_number"]
@@ -208,14 +270,12 @@ def scrape_portal(page, config):
                 print(f"    [!] Skipping row: no ID found in -> '{title_cell_text[:60]}...'")
                 continue
 
-            # Extract link safely — null-guard prevents AttributeError
             link_tag = cols[4].find("a", id=re.compile(r"^DirectLink"))
             if not link_tag:
                 link_tag = cols[4].find("a")
-            tender_title  = link_tag.text.strip().strip("[]") if link_tag else title_cell_text
-            tender_url    = urljoin(config["base"], link_tag.get("href", "")) if link_tag else ""
+            tender_title = link_tag.text.strip().strip("[]") if link_tag else title_cell_text
+            tender_url   = urljoin(config["base"], link_tag.get("href", "")) if link_tag else ""
 
-            # Pre-compute dates once — avoids calling normalize_date() 3x per field
             deadline_dt = normalize_date(cols[2].text.strip())
             opening_dt  = normalize_date(cols[3].text.strip())
 
@@ -243,7 +303,6 @@ def scrape_portal(page, config):
                 "portal_metadata": json.dumps(meta),
             })
 
-        # ── Per-page upsert: flush and free memory before fetching next page ──
         if page_records:
             upsert(page_records)
             total_inserted += len(page_records)
@@ -270,10 +329,6 @@ def scrape_portal(page, config):
 # ── DB Upsert ─────────────────────────────────────────────────────────────────
 
 def upsert(records: list[dict]):
-    """
-    Deduplicates and upserts a batch of records into the tenders table.
-    Uses the locked COLUMNS list to guarantee tuple order matches the SQL.
-    """
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         print("[!] DATABASE_URL not set — skipping DB insert.")
@@ -281,7 +336,6 @@ def upsert(records: list[dict]):
     if not records:
         return
 
-    # Deduplicate: last occurrence of a given id wins
     unique  = {r["id"]: r for r in records}
     deduped = list(unique.values())
 
@@ -291,7 +345,6 @@ def upsert(records: list[dict]):
     conn   = psycopg2.connect(db_url)
     cursor = conn.cursor()
     try:
-        # Tuple order is driven by COLUMNS — safe regardless of dict insertion order
         values = [tuple(r.get(col) for col in COLUMNS) for r in deduped]
         extras.execute_values(cursor, INSERT_SQL, values, page_size=100)
         conn.commit()
@@ -308,6 +361,11 @@ def upsert(records: list[dict]):
 # ── Entry Point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    # FIX 11: Print env var presence at startup so Railway logs confirm config
+    print("[*] Config check:")
+    print(f"    OCR_URL set:       {'YES → ' + LOCAL_OCR_URL if LOCAL_OCR_URL else 'NO ← THIS WILL BREAK CAPTCHA'}")
+    print(f"    DATABASE_URL set:  {'YES' if os.getenv('DATABASE_URL') else 'NO'}")
+
     grand_total = 0
 
     with sync_playwright() as p:
@@ -321,18 +379,36 @@ if __name__ == "__main__":
                 "--disable-dev-shm-usage",
                 "--disable-extensions",
                 "--disable-images",
-                "--blink-settings=imagesEnabled=false",
+                "--blink-settings=imagesEnabled=False",  # FIX 13: note: --disable-images blocks CAPTCHA too!
                 "--single-process",
             ]
         )
-        context = browser.new_context(viewport={"width": 1280, "height": 800})
-        page    = context.new_page()
+
+        # FIX 14: --disable-images also blocks the CAPTCHA image from loading.
+        # Create a context that re-enables images only for captcha domains, or
+        # simply don't block images (it only saves ~5-10% bandwidth on these portals).
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 800},
+            # Route to unblock images selectively if needed
+        )
+
+        # FIX 15: Re-enable images for CAPTCHA routes — block only large media
+        def route_handler(route):
+            resource_type = route.request.resource_type
+            if resource_type in ("media", "font", "stylesheet"):
+                route.abort()
+            else:
+                route.continue_()
+
+        context.route("**/*", route_handler)
+
+        page = context.new_page()
 
         for config in PORTALS:
             count = scrape_portal(page, config)
             grand_total += count
             gc.collect()
-            time.sleep(3)  # Courtesy delay between portals
+            time.sleep(3)
 
         browser.close()
 

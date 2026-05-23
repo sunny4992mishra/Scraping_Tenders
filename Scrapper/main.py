@@ -1,4 +1,3 @@
-
 import subprocess
 import sys
  
@@ -13,9 +12,13 @@ SCRAPERS = [
 for script in SCRAPERS:
     print(f"\n[*] Running {script}...")
     try:
-        subprocess.run([sys.executable, script], check=False)
+        result = subprocess.run([sys.executable, script], check=False)
+        if result.returncode != 0:
+            print(f"[!] {script} exited with code {result.returncode}")
+        else:
+            print(f"[✓] Done: {script}")
     except Exception as e:
         print(f"[!] {script} failed to start: {e}")
-    print(f"[*] Done: {script}")
  
 print("\n[*] All scrapers finished.")
+ 

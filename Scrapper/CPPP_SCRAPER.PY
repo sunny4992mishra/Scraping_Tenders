@@ -91,39 +91,83 @@ def derive_state(org_chain):
     return "Central"
 
 def extract_tender_details(td_element):
-    """Extracts title, deep-link URL, Reference No, and Tender ID from the title cell."""
+    """
+    Parses the combined Title/Ref.No./Tender Id column cell natively.
+    Extracts the true unique Tender ID from the final string token after the last slash,
+    and cleanly isolates descriptive titles from reference structures.
+    """
     a_tag = td_element.find("a")
+    
+    # Extract the full combined text within the anchor tag container
     if a_tag:
-        title = a_tag.text.strip()
+        full_text = a_tag.text.strip()
+    else:
+        full_text = td_element.get_text(separator=" ").strip()
+
+    # Clean up multiple whitespaces, carriage returns, or logging ellipsis artifacts
+    full_text = re.sub(r'\s+', ' ', full_text).rstrip(".")
+
+    # --- STRUCTURAL TENDER ID EXTRACTION ---
+    # The unique ID is consistently placed at the absolute end, split by forward slashes
+    segments = [seg.strip() for seg in full_text.split("/") if seg.strip()]
+    
+    if not segments:
+        return {
+            "title": "N/A",
+            "nit_number": "N/A",
+            "tender_id": None,
+            "source_url": None
+        }
+
+    # The absolute last element is always our unique target ID key
+    tender_id = segments[-1]
+
+    # --- TITLE & NIT NUMBER EXTRACTION SEPARATION ---
+    if len(segments) > 1:
+        first_segment = segments[0]
+        
+        # Detect if it's a structural CPWD/BSNL/MES row vs a real text description
+        is_pure_reference_row = (
+            re.match(r'^\d+', first_segment) or 
+            first_segment.startswith(("GE ", "NCB-", "T.E.No.")) or
+            "CPWD" in full_text or "BSNL" in full_text
+        )
+
+        if is_pure_reference_row:
+            # Duplicate code paths (like CPWD) get split to get a clean reference path
+            halfway = len(segments) // 2
+            ref_path_segments = segments[:halfway] if halfway > 0 else segments[:-1]
+            
+            nit_number = "/".join(ref_path_segments)
+            title = f"Tender {tender_id}"
+        else:
+            # Standard Descriptive Type: [Description Title] / [Reference Details] / [Tender ID]
+            title = first_segment
+            nit_number = "/".join(segments[1:-1])
+    else:
+        title = full_text
+        nit_number = full_text
+
+    # Strip out trailing/leading garbage layout markers if any remain
+    nit_number = nit_number.strip().strip("/").strip()
+    if not nit_number:
+        nit_number = tender_id
+
+    # Decompose the tag safely now that information is extracted
+    if a_tag:
         a_tag.decompose()
-    else:
-        title = "N/A"
 
-    remaining_text = td_element.text.strip().lstrip("/").strip()
-
-    # Primary pattern: full CPPP format e.g. 2026_MCGM_123456_1
-    id_match = re.search(r"(\d{4}_[A-Za-z0-9_]+_\d+_\d+)", remaining_text)
-    if id_match:
-        tender_id = id_match.group(1).strip()
-    else:
-        id_match_alt = re.search(r"(\d{4}_[A-Za-z0-9_]+)", remaining_text)
-        tender_id = id_match_alt.group(1).strip() if id_match_alt else None
-
-    ref_no = remaining_text.replace("Tender ID :", "").replace(tender_id or "", "").replace("/", "").strip()
-    if not ref_no:
-        ref_no = title
-
+    # --- THE FUNCTIONAL PUBLIC SEARCH REDIRECT LINK ---
     source_url = (
         f"https://eprocure.gov.in/eprocure/app?location=FrontEndTendersBySearch"
         f"&page=FrontEndTendersBySearch&service=page&searchData={tender_id}"
-        if tender_id else None
     )
 
     return {
-        "title":      title,
-        "nit_number": ref_no,
-        "tender_id":  tender_id,
-        "source_url": source_url,
+        "title":      title,       
+        "nit_number": nit_number,  
+        "tender_id":  tender_id,   
+        "source_url": source_url,  
     }
 
 
@@ -227,9 +271,10 @@ class CPPPScraper:
                 print("[✓] Empty page — end of results.")
                 break
 
-            page_records  = []
+            page_records   = []
             reached_cutoff = False
-            now_utc        = datetime.now(timezone.utc)   # consistent timestamp for this page
+            skipped_old    = 0
+            now_utc        = datetime.now(timezone.utc)  # consistent timestamp for this page
 
             # rows[0] is the header — skip it
             for row in rows[1:]:
@@ -239,18 +284,18 @@ class CPPPScraper:
 
                 pub_dt = normalize_date(cols[1].text.strip())
 
-                # ── Hard cutoff: CPPP is chronological so first old row = stop everything
+                # Chronological sliding filter
                 if pub_dt and pub_dt < cutoff:
-                    print(f"    [✓] Reached 1-day cutoff at {pub_dt.strftime('%Y-%m-%d %H:%M UTC')}. Stopping.")
-                    reached_cutoff = True
-                    break
+                    skipped_old += 1
+                    continue  
 
                 details = extract_tender_details(cols[4])
+
+                # Safety fallback error catching log check
                 if not details["tender_id"]:
-                    print(f"    [!] Skipping row — no Tender ID found: '{cols[4].text.strip()[:60]}...'")
+                    print(f"    [!] Skipping row — no Tender ID found: '{cols[4].get_text()[:60].strip()}...'")
                     continue
 
-                # Pre-compute dates once per row — no double calls
                 deadline_dt = normalize_date(cols[2].text.strip())
                 opening_dt  = normalize_date(cols[3].text.strip())
                 org_chain   = cols[5].text.strip()
@@ -279,9 +324,15 @@ class CPPPScraper:
                     "portal_metadata": "{}",
                 })
 
-            print(f"    [→] {len(page_records)} valid tender(s) on this page.")
+            print(f"    [→] {len(page_records)} valid, {skipped_old} skipped (before cutoff).")
 
-            # Flush this page to DB and free memory before fetching next page
+            # Check if pagination threshold loop constraints are satisfied
+            data_rows = len(rows) - 1  
+            if skipped_old >= data_rows and data_rows > 0:
+                print(f"    [✓] Entire page is beyond cutoff — stopping pagination.")
+                reached_cutoff = True
+
+            # Flush page batch out immediately
             if page_records:
                 upsert(page_records)
                 total_upserted += len(page_records)

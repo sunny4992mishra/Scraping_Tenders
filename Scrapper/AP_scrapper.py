@@ -93,12 +93,19 @@ class APTenderScraper:
         self._bootstrap()
 
     def _bootstrap(self):
-        """Initialise session cookies by hitting the homepage first."""
         print("[*] Bootstrapping session...")
         self.session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
-        resp = self.session.get(HOME_URL, timeout=30)
-        print(f"    Homepage: HTTP {resp.status_code}")
-        print(f"    Cookies : {dict(self.session.cookies)}")
+        for attempt in range(3):
+            try:
+                resp = self.session.get(HOME_URL, timeout=30)
+                print(f"    Homepage: HTTP {resp.status_code}")
+                print(f"    Cookies : {dict(self.session.cookies)}")
+                return
+            except Exception as e:
+                delay = 5 * (2 ** attempt)
+                print(f"    [!] Bootstrap attempt {attempt+1} failed: {e} — retrying in {delay}s")
+                time.sleep(delay)
+        print("    [!] Bootstrap failed after 3 attempts — proceeding without session cookies.")
 
     def _build_params(self, start: int, length: int, echo: int) -> dict:
         return {
