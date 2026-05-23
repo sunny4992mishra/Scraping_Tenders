@@ -1,0 +1,539 @@
+/* ============================================================
+   CHARDI.AI — RESPONSIVE SYSTEM
+   Mobile-first overrides and breakpoint enhancements
+   ============================================================ */
+
+/* ── Mobile Base Overrides ── 
+   These rules apply to all screens and establish the mobile-first baseline
+   by overriding desktop-centric styles in base CSS files. */
+
+:root {
+  --content-padding: var(--spacing-md);
+  /* Fluid Typography */
+  --font-size-h1: clamp(1.5rem, 5vw, 2.25rem);
+  --font-size-stat: clamp(1.5rem, 6vw, 2rem);
+}
+
+html {
+  font-size: 15px; /* Base for rem units */
+}
+
+body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+/* Navbar simplification for mobile */
+.navbar__tagline { display: none; }
+.navbar__scraped-text { display: none; }
+.navbar__logo { font-size: clamp(1.25rem, 4vw, 1.5rem); }
+
+/* Stats Bar Reflow */
+.stats-bar {
+  padding: var(--spacing-md) 0;
+}
+
+.stats-bar__grid {
+  grid-template-columns: 1fr;
+  gap: 1px;
+}
+
+.stat-card {
+  padding: var(--spacing-md);
+  min-height: 72px;
+}
+
+.stat-card__value {
+  font-size: var(--font-size-stat);
+}
+
+/* Layout stacking */
+.main-layout {
+  flex-direction: column;
+  padding: var(--spacing-md);
+  gap: var(--spacing-md);
+}
+
+/* Sidebar behavior */
+.sidebar {
+  display: none; /* Hide desktop sidebar by default */
+}
+
+.sidebar--drawer {
+  display: flex; /* Drawer sidebar is active on mobile */
+}
+
+/* Content Toolbar stacking */
+.content-toolbar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-sm);
+}
+
+.content-toolbar__left {
+  width: 100%;
+}
+
+.content-toolbar__right {
+  width: 100%;
+  justify-content: flex-end;
+  gap: var(--spacing-xs);
+}
+
+/* Buttons and Touch Targets */
+.btn {
+  min-height: 44px; /* Accessible touch target */
+  padding: 0 var(--spacing-lg);
+}
+
+.btn--icon {
+  padding: 0 !important;
+  width: 44px !important; /* Match touch target height for a square button */
+}
+
+.btn--sm {
+  min-height: 36px;
+}
+
+.filter-toggle-btn {
+  /* display: flex handled in Bug Fixes section */
+}
+
+/* Search Input accessibility */
+.input--lg {
+  height: 48px;
+}
+
+/* Pagination Stacking */
+.pagination {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--spacing-md);
+  text-align: center;
+}
+
+.pagination__controls,
+.pagination__jump {
+  justify-content: center;
+}
+
+/* Chart Reflow */
+.chart-canvas-wrapper,
+.chart-skeleton {
+  height: 200px;
+}
+
+/* Detail Page Fluidity */
+.detail-header__title {
+  font-size: var(--font-size-h1);
+}
+
+.metadata-grid,
+.detail-metadata-grid {
+  grid-template-columns: 1fr !important;
+}
+
+.source-box {
+  flex-direction: column;
+  gap: var(--spacing-md);
+  align-items: flex-start;
+}
+
+/* ══════════════════════════════════════════
+   TABLE RESPONSIVENESS (Mobile, Tablet, Desktop)
+   ══════════════════════════════════════════ */
+
+/* Mobile: Cards View */
+@media (max-width: 767px) {
+  .table-wrapper {
+    margin: 0 calc(-1 * var(--spacing-md));
+    border-radius: 0;
+    border: none;
+    background: transparent;
+  }
+  
+  .table-scroll {
+    overflow-x: visible;
+  }
+
+  .tenders-table {
+    min-width: 0;
+    display: block;
+  }
+  
+  .tenders-table thead {
+    display: none;
+  }
+  
+  .tenders-table tbody {
+    display: block;
+    padding: 0 var(--spacing-md);
+  }
+  
+  .tenders-table tbody tr {
+    display: block;
+    margin-bottom: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    background: var(--color-surface);
+  }
+  
+  .tenders-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+    gap: 8px;
+    min-height: 44px; /* Mobile touch target */
+  }
+  
+  .tenders-table tbody td:last-child {
+    border-bottom: none;
+  }
+
+  /* Inject Labels via CSS :nth-child */
+  .tenders-table tbody td::before {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+  }
+  
+  .tenders-table tbody td:nth-child(2)::before { content: "Buyer"; }
+  .tenders-table tbody td:nth-child(3)::before { content: "State"; }
+  .tenders-table tbody td:nth-child(4)::before { content: "Category"; }
+  .tenders-table tbody td:nth-child(5)::before { content: "Value"; }
+  .tenders-table tbody td:nth-child(6)::before { content: "Deadline"; }
+  .tenders-table tbody td:nth-child(7)::before { content: "Status"; }
+  .tenders-table tbody td:nth-child(8)::before { content: "Source"; }
+
+  /* Title Cell (Full width, no label) */
+  .tenders-table tbody td:nth-child(1) {
+    display: block;
+    font-size: var(--text-base);
+    font-weight: 500;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--color-border);
+    align-items: flex-start;
+  }
+  
+  .tenders-table tbody td:nth-child(1)::before {
+    display: none;
+  }
+
+  /* Specific alignments */
+  .tenders-table tbody td:nth-child(7),
+  .tenders-table tbody td:nth-child(8),
+  .tenders-table tbody td:nth-child(6) {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  /* Hide less important columns */
+  .tenders-table tbody td:nth-child(3),
+  .tenders-table tbody td:nth-child(4) {
+    display: none;
+  }
+
+  .td-title__text {
+    display: block; /* Override line-clamp to show full title on cards */
+    -webkit-line-clamp: unset;
+  }
+}
+
+/* Tablet: Condensed Table */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .table-wrapper {
+    margin: 0;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+  }
+
+  .tenders-table {
+    min-width: 100%;
+  }
+
+  /* Hide lower-priority columns */
+  .tenders-table th:nth-child(3),
+  .tenders-table td:nth-child(3),
+  .tenders-table th:nth-child(4),
+  .tenders-table td:nth-child(4),
+  .tenders-table th:nth-child(8),
+  .tenders-table td:nth-child(8) {
+    display: none;
+  }
+
+  /* Let the table breathe */
+  .tenders-table th, 
+  .tenders-table td {
+    padding: 10px 8px;
+    font-size: var(--text-sm);
+  }
+
+  /* Title column gets more room */
+  .tenders-table th:nth-child(1),
+  .tenders-table td:nth-child(1) {
+    width: 35%;
+  }
+
+  /* Prevent Buyer column from taking too much space */
+  .tenders-table th:nth-child(2),
+  .tenders-table td:nth-child(2) {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .td-buyer__name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Desktop: Polished Table */
+@media (min-width: 1024px) {
+  .tenders-table th:nth-child(1),
+  .tenders-table td:nth-child(1) {
+    max-width: 320px;
+  }
+
+  .tenders-table td:nth-child(1) .td-title__text,
+  .tenders-table td:nth-child(2) .td-buyer__name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    white-space: normal;
+  }
+
+  .tenders-table th, 
+  .tenders-table td {
+    padding: 12px 10px;
+  }
+}
+
+/* ══════════════════════════════════════════
+   LARGE PHONES (min-width: 425px)
+   ══════════════════════════════════════════ */
+@media (min-width: 425px) {
+  .stats-bar__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ══════════════════════════════════════════
+   TABLETS (min-width: 768px)
+   ══════════════════════════════════════════ */
+@media (min-width: 768px) {
+  :root {
+    --content-padding: var(--spacing-lg);
+  }
+
+  .navbar__scraped-text { display: inline; }
+
+  .main-layout {
+    padding: var(--spacing-lg);
+  }
+
+  .content-toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .content-toolbar__right {
+    width: auto;
+  }
+
+  .pagination {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  /* Adjust button sizes for larger screens */
+  .btn {
+    min-height: 36px;
+    padding: 0 var(--spacing-md);
+  }
+
+  .btn--sm {
+    min-height: 28px;
+  }
+
+  .metadata-grid,
+  .detail-metadata-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  .source-box {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+/* ══════════════════════════════════════════
+   SMALL LAPTOPS (min-width: 1024px)
+   ══════════════════════════════════════════ */
+@media (min-width: 1024px) {
+  .navbar__tagline { display: block; }
+
+  .stats-bar__grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .main-layout {
+    flex-direction: row;
+    align-items: flex-start;
+    padding-top: var(--spacing-xl);
+    max-width: var(--page-max-width);
+    margin: 0 auto;
+  }
+
+  /* Reveal desktop sidebar, hide mobile toggle */
+  .sidebar {
+    display: flex;
+  }
+
+  .filter-toggle-btn {
+    display: none !important;
+  }
+
+  .chart-canvas-wrapper,
+  .chart-skeleton {
+    height: 220px;
+  }
+
+  .metadata-grid,
+  .detail-metadata-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ══════════════════════════════════════════
+   DESKTOPS (min-width: 1280px)
+   ══════════════════════════════════════════ */
+@media (min-width: 1280px) {
+  :root {
+    --sidebar-width: 272px;
+  }
+
+  .page-container,
+  .navbar__inner {
+    padding: 0 var(--spacing-xl);
+  }
+}
+
+/* ══════════════════════════════════════════
+   LARGE SCREENS (min-width: 1536px)
+   ══════════════════════════════════════════ */
+@media (min-width: 1536px) {
+  html {
+    font-size: 16px; /* Slightly larger base for ultra-wide screens */
+  }
+
+  .page-container,
+  .main-layout,
+  .navbar__inner {
+    max-width: 1600px;
+  }
+}
+
+/* ── Utility: Hide on mobile/desktop ── */
+.hide-mobile {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .hide-mobile { display: block !important; }
+  .hide-desktop { display: none !important; }
+}
+
+/* ── Bug Fixes ── */
+
+/* Bug 1: Ensure Navbar Logo/Brand SVG is visible and correctly sized on mobile */
+.navbar__brand svg {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  color: var(--color-text-primary);
+  fill: currentColor;
+  vertical-align: middle;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+@media (max-width: 768px) {
+  .navbar__brand svg {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* Ensure the brand container doesn't clip the icon */
+.navbar__brand {
+  overflow: visible !important;
+}
+
+/* Bug 1 safety: ensure text-based logo is always flex and centered */
+.navbar__logo {
+  display: flex !important;
+  align-items: center;
+  min-height: 36px;
+}
+
+/* Bug 1: Prevent chart bars from being absurdly wide on sparse data (safety net) */
+.recharts-bar-rectangle rect,
+[class*="bar-chart"] rect,
+canvas#state-chart {
+  max-width: 100%;
+}
+
+/* Consolidated Filter Toggle Fix: Visible only on mobile/tablet */
+@media (max-width: 1023px) {
+  .filter-toggle-btn {
+    display: flex !important;
+    position: relative;
+  }
+
+  .filter-toggle-btn svg {
+    width: 20px !important;
+    height: 20px !important;
+    stroke: var(--color-text-primary) !important;
+    stroke-width: 2.2px !important;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  .filter-toggle-btn svg path {
+    stroke: inherit !important;
+  }
+}
+
+/* Ensure search and other icons are also visible */
+.navbar svg,
+.search-wrapper svg,
+.btn svg,
+[class*="icon"] svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+/* Ensure color inheritance for search icon if it'scurrentColor */
+.search-wrapper__icon {
+  color: var(--color-text-muted);
+}
+
+.search-wrapper:focus-within .search-wrapper__icon {
+  color: var(--color-accent);
+}

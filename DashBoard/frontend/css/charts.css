@@ -1,0 +1,78 @@
+/* ============================================================
+   CHARDI.AI — CHARTS
+   ============================================================ */
+
+.chart-container {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  overflow: hidden;
+}
+
+.chart-container__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-lg);
+}
+
+.chart-container__title {
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.chart-container__title::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.chart-container__subtitle {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.chart-canvas-wrapper {
+  position: relative;
+  height: 220px;
+}
+
+/* ── Chart skeleton ── */
+.chart-skeleton {
+  height: 220px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: var(--spacing-md);
+}
+
+.chart-skeleton__bar {
+  flex: 1;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-raised) 0%,
+    var(--color-surface-overlay) 50%,
+    var(--color-surface-raised) 100%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.chart-skeleton__bar:nth-child(1) { height: 60%; animation-delay: 0ms; }
+.chart-skeleton__bar:nth-child(2) { height: 85%; animation-delay: 100ms; }
+.chart-skeleton__bar:nth-child(3) { height: 45%; animation-delay: 200ms; }
+.chart-skeleton__bar:nth-child(4) { height: 70%; animation-delay: 300ms; }
+.chart-skeleton__bar:nth-child(5) { height: 55%; animation-delay: 400ms; }
+.chart-skeleton__bar:nth-child(6) { height: 90%; animation-delay: 500ms; }
+.chart-skeleton__bar:nth-child(7) { height: 40%; animation-delay: 600ms; }
+.chart-skeleton__bar:nth-child(8) { height: 65%; animation-delay: 700ms; }

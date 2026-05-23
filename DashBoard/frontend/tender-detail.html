@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tender Details — Chardi.ai</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+  
+  <!-- CSS Files -->
+  <link rel="stylesheet" href="css/reset.css">
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/responsive.css">
+
+  <style>
+    .detail-container {
+      max-width: 900px;
+      margin: var(--spacing-2xl) auto;
+      padding: 0 var(--spacing-lg);
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      color: var(--color-text-secondary);
+      margin-bottom: var(--spacing-xl);
+      font-size: 0.875rem;
+    }
+    .back-link:hover {
+      color: var(--color-accent);
+    }
+    .detail-header {
+      margin-bottom: var(--spacing-2xl);
+    }
+    .detail-header__title {
+      font-size: 1.875rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: var(--spacing-md);
+      color: var(--color-text-primary);
+    }
+    .metadata-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--spacing-xl);
+      padding: var(--spacing-xl);
+      background-color: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      margin-bottom: var(--spacing-2xl);
+    }
+    .meta-item__label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--spacing-xs);
+    }
+    .meta-item__value {
+      font-size: 1rem;
+      color: var(--color-text-primary);
+      font-weight: 500;
+    }
+    .detail-section {
+      margin-bottom: var(--spacing-2xl);
+    }
+    .detail-section__title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      margin-bottom: var(--spacing-lg);
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: var(--spacing-sm);
+    }
+    .description-text {
+      color: var(--color-text-secondary);
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .document-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+    }
+    .document-link {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-md);
+      background-color: var(--color-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      transition: all 0.2s;
+    }
+    .document-link:hover {
+      border-color: var(--color-accent);
+      background-color: var(--color-accent-soft);
+    }
+    .source-box {
+      margin-top: var(--spacing-2xl);
+      padding: var(--spacing-lg);
+      border-top: 1px solid var(--color-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .scraped-at {
+      font-size: 0.75rem;
+      color: var(--color-text-muted);
+    }
+    @media (max-width: 640px) {
+      .metadata-grid {
+        grid-template-columns: 1fr;
+      }
+      .detail-header__title {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="container navbar__content">
+      <div class="navbar__logo">Chardi.ai</div>
+    </div>
+  </nav>
+
+  <main class="detail-container" style="margin-top: 100px;">
+    <a href="index.html" class="back-link">← Back to Dashboard</a>
+
+    <div id="detail-content">
+      <!-- Loading State -->
+      <div id="detail-loading">
+        <div class="skeleton" style="height: 40px; width: 80%; margin-bottom: 20px;"></div>
+        <div class="skeleton" style="height: 200px; width: 100%; margin-bottom: 20px;"></div>
+        <div class="skeleton" style="height: 100px; width: 100%;"></div>
+      </div>
+
+      <!-- Detail View (hidden by default) -->
+      <div id="detail-view" class="hidden">
+        <header class="detail-header">
+          <div id="detail-status-badge"></div>
+          <h1 class="detail-header__title" id="detail-title"></h1>
+        </header>
+
+        <div class="metadata-grid">
+          <div class="meta-item">
+            <div class="meta-item__label">Tender Ref No</div>
+            <div class="meta-item__value" id="detail-ref"></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item__label">Source Portal</div>
+            <div class="meta-item__value" id="detail-portal"></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item__label">Buyer Name</div>
+            <div class="meta-item__value" id="detail-buyer"></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item__label">Buyer Type</div>
+            <div class="meta-item__value" id="detail-buyer-type"></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item__label">State</div>
+            <div class="meta-item__value" id="detail-state"></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item__label">Category</div>
+            <div class="meta-item__value" id="detail-category"></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item__label">Published At</div>
+            <div class="meta-item__value" id="detail-published"></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item__label">Deadline</div>
+            <div class="meta-item__value" id="detail-deadline"></div>
+          </div>
+          <div class="meta-item">
+            <div class="meta-item__label">Value</div>
+            <div class="meta-item__value" id="detail-value"></div>
+          </div>
+        </div>
+
+        <section class="detail-section">
+          <h3 class="detail-section__title">Description</h3>
+          <p class="description-text" id="detail-description"></p>
+        </section>
+
+        <section class="detail-section">
+          <h3 class="detail-section__title">Documents</h3>
+          <div class="document-list" id="detail-documents"></div>
+        </section>
+
+        <div class="source-box">
+          <a href="#" id="detail-source-url" target="_blank" class="btn btn--primary">View on Source Portal →</a>
+          <div class="scraped-at" id="detail-scraped"></div>
+        </div>
+      </div>
+
+      <!-- Error State -->
+      <div id="detail-error" class="hidden">
+        <div class="error-message">
+          <h2>Tender Not Found</h2>
+          <p>The tender you are looking for does not exist or has been removed.</p>
+          <a href="index.html" class="btn btn--primary">Back to Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/api.js" defer></script>
+  <script src="js/detail.js" defer></script>
+</body>
+</html>

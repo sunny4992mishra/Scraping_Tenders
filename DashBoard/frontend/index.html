@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chardi.ai — Government Tender Intelligence</title>
+  <meta name="description" content="Bloomberg Terminal for Indian Government Contracts. Real-time tenders from CPPP and 9 state portals." />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjAlIiB5MT0iMCUiIHgyPSIxMDAlIiB5Mj0iMTAwJSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6I0U4NjEzQyIvPjxzdG9wIG9mZnNldD0iNTAlIiBzdHlsZT0ic3RvcC1jb2xvcjojRjI5OTRBIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojRjdDOTQ4Ii8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIHJ4PSI5NiIgZmlsbD0idXJsKCNiZykiLz48dGV4dCB4PSIyNTYiIHk9IjM0MCIgZm9udC1mYW1pbHk9InN5c3RlbS11aSwgLWFwcGxlLXN5c3RlbSwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIzMDAiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IndoaXRlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5DPC90ZXh0Pjwvc3ZnPg==">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+      href="https://fonts.googleapis.com/css2?family=Geist:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap"
+      rel="stylesheet"
+    />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="css/reset.css" />
+  <link rel="stylesheet" href="css/variables.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/table.css" />
+  <link rel="stylesheet" href="css/filters.css" />
+  <link rel="stylesheet" href="css/charts.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════
+       NAVBAR
+  ══════════════════════════════════════════ -->
+  <nav class="navbar">
+    <div class="navbar__inner">
+      <div class="navbar__brand">
+        <div class="navbar__logo">Chardi<span>.</span>ai</div>
+        <div class="navbar__tagline">Beta</div>
+      </div>
+      <div class="navbar__right">
+        <div class="navbar__scraped">
+          <span class="navbar__scraped-dot"></span>
+          <span class="navbar__scraped-text">Last scraped:&nbsp;</span>
+          <span id="last-scraped">—</span>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══════════════════════════════════════════
+       PAGE BODY
+  ══════════════════════════════════════════ -->
+  <main class="page-body">
+
+    <!-- STATS BAR -->
+    <section class="stats-bar">
+      <div class="page-container">
+        <div class="stats-bar__grid" id="stats-grid">
+          <div class="stat-card stat-card--skeleton">
+            <span class="stat-card__label skeleton">&nbsp;</span>
+            <span class="stat-card__value skeleton">&nbsp;</span>
+          </div>
+          <div class="stat-card stat-card--skeleton">
+            <span class="stat-card__label skeleton">&nbsp;</span>
+            <span class="stat-card__value skeleton">&nbsp;</span>
+          </div>
+          <div class="stat-card stat-card--skeleton">
+            <span class="stat-card__label skeleton">&nbsp;</span>
+            <span class="stat-card__value skeleton">&nbsp;</span>
+          </div>
+          <div class="stat-card stat-card--skeleton">
+            <span class="stat-card__label skeleton">&nbsp;</span>
+            <span class="stat-card__value skeleton">&nbsp;</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAIN LAYOUT -->
+    <div class="main-layout">
+
+      <!-- ════════════════════════════
+           FILTER SIDEBAR (desktop)
+      ════════════════════════════ -->
+      <aside class="sidebar" id="sidebar-desktop">
+        <div class="sidebar__header">
+          <span class="sidebar__title">
+            Filters
+            <span id="active-filter-count" class="filter-group__count" style="display:none; margin-left:6px;"></span>
+          </span>
+          <a href="#" class="sidebar__clear">Clear all</a>
+        </div>
+
+        <!-- Status -->
+        <div class="filter-group">
+          <div class="filter-group__label">Status</div>
+          <div class="status-pills">
+            <button class="status-pill active" data-status="all">All</button>
+            <button class="status-pill" data-status="open">Open</button>
+            <button class="status-pill" data-status="closed">Closed</button>
+            <button class="status-pill" data-status="cancelled">Cancelled</button>
+          </div>
+        </div>
+
+        <!-- State — only states covered by our portals -->
+        <div class="filter-group">
+          <div class="filter-group__label">State / Region</div>
+          <select class="state-select" id="filter-state">
+            <option value="all">All States</option>
+            <option value="central">Central (Pan-India)</option>
+            <optgroup label="──────────"></optgroup>
+            <option value="AP">Andhra Pradesh</option>
+            <option value="KA">Karnataka</option>
+            <option value="KL">Kerala</option>
+            <option value="MH">Maharashtra</option>
+            <option value="RJ">Rajasthan</option>
+            <option value="TN">Tamil Nadu</option>
+            <option value="TG">Telangana</option>
+            <option value="UP">Uttar Pradesh</option>
+            <option value="WB">West Bengal</option>
+          </select>
+        </div>
+
+        <!-- Source Portal — exactly our 10 portals -->
+        <div class="filter-group">
+          <div class="filter-group__label">Source Portal</div>
+          <div class="checkbox-list">
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="cppp" />
+              <span class="checkbox-item__label">CPPP</span>
+              <span class="portal-badge portal-badge--cppp" style="font-size:10px;padding:1px 5px;">CPPP</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="mahatenders" />
+              <span class="checkbox-item__label">Maharashtra</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">MH</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="kppp" />
+              <span class="checkbox-item__label">Karnataka</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">KA</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="tntenders" />
+              <span class="checkbox-item__label">Tamil Nadu</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">TN</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="etender_up" />
+              <span class="checkbox-item__label">Uttar Pradesh</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">UP</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="telangana" />
+              <span class="checkbox-item__label">Telangana</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">TG</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="wbtenders" />
+              <span class="checkbox-item__label">West Bengal</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">WB</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="etenders_kerala" />
+              <span class="checkbox-item__label">Kerala</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">KL</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="ap_eprocurement" />
+              <span class="checkbox-item__label">Andhra Pradesh</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">AP</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-portal="eproc_rajasthan" />
+              <span class="checkbox-item__label">Rajasthan</span>
+              <span class="portal-badge portal-badge--state" style="font-size:10px;padding:1px 5px;">RJ</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Deadline -->
+        <div class="filter-group">
+          <div class="filter-group__label">Deadline</div>
+          <div class="date-range">
+            <div class="date-range__row">
+              <span class="date-range__label">From</span>
+              <input type="date" class="input" id="filter-deadline-after" />
+            </div>
+            <div class="date-range__row">
+              <span class="date-range__label">To</span>
+              <input type="date" class="input" id="filter-deadline-before" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Value Range -->
+        <div class="filter-group">
+          <div class="filter-group__label">Value (₹)</div>
+          <div class="value-range">
+            <input type="number" class="input" id="filter-min-value"
+              placeholder="Min" min="0" step="100000" />
+            <span class="value-range__separator">–</span>
+            <input type="number" class="input" id="filter-max-value"
+              placeholder="Max" min="0" step="100000" />
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- ════════════════════════════
+           MOBILE FILTER DRAWER
+      ════════════════════════════ -->
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
+      <aside class="sidebar sidebar--drawer" id="sidebar-drawer">
+        <button class="sidebar__close" id="sidebar-close" aria-label="Close filters">✕</button>
+
+        <div class="sidebar__header">
+          <span class="sidebar__title">Filters</span>
+          <a href="#" class="sidebar__clear" style="opacity:0.4;">Clear all</a>
+        </div>
+
+        <!-- Status -->
+        <div class="filter-group">
+          <div class="filter-group__label">Status</div>
+          <div class="status-pills">
+            <button class="status-pill active" data-status="all">All</button>
+            <button class="status-pill" data-status="open">Open</button>
+            <button class="status-pill" data-status="closed">Closed</button>
+            <button class="status-pill" data-status="cancelled">Cancelled</button>
+          </div>
+        </div>
+
+        <!-- State (mobile) -->
+        <div class="filter-group">
+          <div class="filter-group__label">State</div>
+          <select class="state-select" id="filter-state-mobile">
+            <option value="all">All States</option>
+            <option value="central">Central</option>
+            <optgroup label="──────────"></optgroup>
+            <option value="AP">Andhra Pradesh</option>
+            <option value="KA">Karnataka</option>
+            <option value="KL">Kerala</option>
+            <option value="MH">Maharashtra</option>
+            <option value="RJ">Rajasthan</option>
+            <option value="TN">Tamil Nadu</option>
+            <option value="TG">Telangana</option>
+            <option value="UP">Uttar Pradesh</option>
+            <option value="WB">West Bengal</option>
+          </select>
+        </div>
+
+        <!-- Buyer Type (mobile) -->
+        <div class="filter-group">
+          <div class="filter-group__label">Buyer Type</div>
+          <div class="checkbox-list">
+            <label class="checkbox-item">
+              <input type="checkbox" data-buyer-type="central_ministry" />
+              <span class="checkbox-item__label">Central Ministry</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-buyer-type="psu" />
+              <span class="checkbox-item__label">PSU</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-buyer-type="state_govt" />
+              <span class="checkbox-item__label">State Government</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" data-buyer-type="defence" />
+              <span class="checkbox-item__label">Defence</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Deadline (mobile) -->
+        <div class="filter-group">
+          <div class="filter-group__label">Deadline</div>
+          <div class="date-range">
+            <div class="date-range__row">
+              <span class="date-range__label">From</span>
+              <input type="date" class="input" id="filter-deadline-after-mobile" />
+            </div>
+            <div class="date-range__row">
+              <span class="date-range__label">To</span>
+              <input type="date" class="input" id="filter-deadline-before-mobile" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Value Range (mobile) -->
+        <div class="filter-group">
+          <div class="filter-group__label">Value (₹)</div>
+          <div class="value-range">
+            <input type="number" class="input" id="filter-min-value-mobile"
+              placeholder="Min" min="0" step="100000" />
+            <span class="value-range__separator">–</span>
+            <input type="number" class="input" id="filter-max-value-mobile"
+              placeholder="Max" min="0" step="100000" />
+          </div>
+        </div>
+      </aside>
+
+      <!-- ════════════════════════════
+           MAIN CONTENT
+      ════════════════════════════ -->
+      <div class="main-content">
+
+        <!-- Toolbar -->
+        <div class="content-toolbar">
+          <div class="content-toolbar__left">
+            <!-- Mobile filter toggle -->
+            <button class="btn btn--ghost btn--icon filter-toggle-btn" id="filter-toggle" aria-label="Open filters">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M3 4h18M6 8h12M10 12h4"/>
+              </svg>
+              <span class="filter-active-dot" style="display:none;"></span>
+            </button>
+
+            <!-- Search -->
+            <div class="search-wrapper">
+              <span class="search-wrapper__icon">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"/>
+                </svg>
+              </span>
+              <input type="text" class="input input--lg" id="search-input"
+                placeholder="Search tenders, buyers, departments…" autocomplete="off" />
+              <button class="search-wrapper__clear" aria-label="Clear search">✕</button>
+            </div>
+          </div>
+
+          <div class="content-toolbar__right">
+            <div id="result-count"></div>
+            <button class="btn btn--ghost btn--sm" id="export-csv">
+              ↓ CSV
+            </button>
+            <button class="btn btn--ghost btn--sm" id="export-json">
+              ↓ JSON
+            </button>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+          <div class="table-scroll">
+            <table class="tenders-table" role="grid">
+              <thead>
+                <tr>
+                  <th class="th--sortable" data-sort="title">
+                    <span class="th-inner">
+                      Title
+                      <svg class="sort-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 12"
+                        fill="currentColor" width="9" height="11">
+                        <path d="M5 0l3.5 4h-7L5 0zm0 12L1.5 8h7L5 12z"/>
+                      </svg>
+                    </span>
+                  </th>
+                  <th>Buyer</th>
+                  <th>State</th>
+                  <th>Category</th>
+                  <th class="th--sortable" data-sort="value" style="text-align:right;">
+                    <span class="th-inner">
+                      Value
+                      <svg class="sort-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 12"
+                        fill="currentColor" width="9" height="11">
+                        <path d="M5 0l3.5 4h-7L5 0zm0 12L1.5 8h7L5 12z"/>
+                      </svg>
+                    </span>
+                  </th>
+                  <th class="th--sortable" data-sort="deadline_at">
+                    <span class="th-inner">
+                      Deadline
+                      <svg class="sort-arrow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 12"
+                        fill="currentColor" width="9" height="11">
+                        <path d="M5 0l3.5 4h-7L5 0zm0 12L1.5 8h7L5 12z"/>
+                      </svg>
+                    </span>
+                  </th>
+                  <th>Status</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody id="table-body-wrapper">
+                <!-- Rendered by table.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <div class="pagination__info" id="pagination-info">Page 1 of 1</div>
+          <div class="pagination__controls">
+            <button class="btn btn--ghost btn--sm" id="pagination-prev" disabled>← Prev</button>
+            <button class="btn btn--ghost btn--sm" id="pagination-next" disabled>Next →</button>
+          </div>
+          <div class="pagination__jump">
+            <span>Go to</span>
+            <input type="number" class="pagination__jump-input" id="pagination-jump"
+              min="1" value="1" aria-label="Jump to page" />
+            <span>of <span id="pagination-total">1</span></span>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="chart-section">
+          <div class="chart-container">
+            <div class="chart-container__header">
+              <span class="chart-container__title">Tenders by State</span>
+              <span class="chart-container__subtitle" id="chart-subtitle">All portals</span>
+            </div>
+            <div class="chart-skeleton" id="chart-skeleton">
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+              <div class="chart-skeleton__bar"></div>
+            </div>
+            <div id="chart-error" style="display:none;"></div>
+            <div class="chart-canvas-wrapper">
+              <canvas id="state-chart" style="display:none;"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /main-content -->
+    </div><!-- /main-layout -->
+  </main><!-- /page-body -->
+
+  <!-- JS — loaded in dependency order -->
+  <script src="js/api.js" defer></script>
+  <script src="js/filters.js" defer></script>
+  <script src="js/search.js" defer></script>
+  <script src="js/table.js" defer></script>
+  <script src="js/charts.js" defer></script>
+
+  <!-- Dashboard orchestrator -->
+  <script defer>
+    document.addEventListener('DOMContentLoaded', async () => {
+
+      Filters.init();
+      Table.init();
+      Search.init();
+      Filters.bindUI();
+
+      // ── Stats bar ──────────────────────────────────────────────────────────
+      async function loadStats() {
+        try {
+          const stats = await API.fetchStats();
+          document.getElementById('last-scraped').textContent =
+            API.relativeTime(stats.last_scraped_at);
+          document.getElementById('stats-grid').innerHTML = `
+            <div class="stat-card">
+              <div class="stat-card__label">Total Tenders</div>
+              <div class="stat-card__value">${stats.total.toLocaleString("en-IN")}</div>
+              <span class="stat-card__icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-icon lucide-list"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></svg></span>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card__label">Open Now</div>
+              <div class="stat-card__value stat-card__value--accent">${stats.open_count.toLocaleString("en-IN")}</div>
+              <span class="stat-card__icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-badge-info-icon lucide-badge-info"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg></span>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card__label">Total Value</div>
+              <div class="stat-card__value">${API.formatINR(stats.total_value)}</div>
+              <span class="stat-card__icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-indian-rupee-icon lucide-indian-rupee"><path d="M6 3h12"/><path d="M6 8h12"/><path d="m6 13 8.5 8"/><path d="M6 13h3"/><path d="M9 13c6.667 0 6.667-10 0-10"/></svg></span>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card__label">Portals Covered</div>
+              <div class="stat-card__value">${stats.portal_count}</div>
+              <span class="stat-card__icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check-check-icon lucide-check-check"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>
+            </div>`;
+        } catch (err) {
+          console.error('Stats load failed:', err);
+        }
+      }
+
+      // ── Chart — fetches from dedicated endpoint ────────────────────────────
+      async function loadChart(filters) {
+        Charts.showSkeleton();
+        try {
+          const data = await API.fetchChartData(filters);
+          // Convert [{state, count}] array to format Charts expects
+          const fakeTenders = data.flatMap(({ state, count }) =>
+            Array.from({ length: count }, () => ({ state }))
+          );
+          Charts.renderStateChart(fakeTenders);
+
+          const sub = document.getElementById('chart-subtitle');
+          if (sub) {
+            sub.textContent = (filters.portal?.length > 0)
+              ? filters.portal.map(p => p.toUpperCase()).join(', ')
+              : 'All portals';
+          }
+        } catch (err) {
+          Charts.showError('Could not load chart data.');
+        }
+      }
+
+      // ── Tenders table ──────────────────────────────────────────────────────
+      async function loadTenders() {
+        const filters = Filters.get();
+        const page    = filters.page || 1;
+
+        Table.renderSkeletons();
+
+        try {
+          const result = await API.fetchTenders(filters, page, 25);
+          Table.renderTable(result.tenders, result.total);
+          Table.renderPagination(result.page, result.total_pages, result.total);
+          loadChart(filters);   // chart always reflects current filter state
+        } catch (err) {
+          console.error('Tenders load failed:', err);
+          Table.renderError(err.message || 'Network error');
+          Charts.showError('Could not load chart data.');
+        }
+      }
+
+      // ── Export ─────────────────────────────────────────────────────────────
+      document.getElementById('export-csv').addEventListener('click', () => {
+        API.exportTenders('csv', Filters.get());
+      });
+      document.getElementById('export-json').addEventListener('click', () => {
+        API.exportTenders('json', Filters.get());
+      });
+
+      // ── Wire filter changes ────────────────────────────────────────────────
+      Filters.onChange(() => loadTenders());
+      window._dashboardRefresh = loadTenders;
+
+      // ── Initial load ───────────────────────────────────────────────────────
+      loadStats();
+      loadTenders();
+    });
+  </script>
+
+</body>
+</html>
