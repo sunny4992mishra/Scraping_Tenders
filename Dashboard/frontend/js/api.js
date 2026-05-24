@@ -4,7 +4,7 @@
    Set USE_MOCK = true for local development without a backend.
    ============================================================ */
 
-const BASE_URL = 'http://127.0.0.1:8000'; // change to your Railway URL in prod
+const BASE_URL = 'https://backend-production-6227c.up.railway.app'; // change to your Railway URL in prod
 const USE_MOCK  = false;                  // flip to true for offline dev
 
 /* ──────────────────────────────────────────────

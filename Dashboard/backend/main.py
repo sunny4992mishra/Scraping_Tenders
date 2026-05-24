@@ -113,10 +113,10 @@ def build_where(
         params.append(status)
 
     if state and state != "all":
-        if state == "central":
+        if state.lower() == "central":
             clauses.append("state IS NULL")
         else:
-            clauses.append("state = %s")
+            clauses.append("LOWER(state) = LOWER(%s)")
             params.append(state)
 
     if buyer_type:
