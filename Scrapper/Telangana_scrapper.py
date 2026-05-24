@@ -95,9 +95,20 @@ class TelanganaTenderScraper:
     def _bootstrap(self):
         """Initializes session cookies by hitting the portal homepage first."""
         print("[*] Bootstrapping session...")
-        self.session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
-        resp = self.session.get(HOME_URL, timeout=30)
-        print(f"    Homepage: HTTP {resp.status_code}")
+        for attempt in range(3):
+            self.session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+            try:
+                resp = self.session.get(HOME_URL, timeout=45)
+                print(f"    Homepage: HTTP {resp.status_code}")
+                return  # success — cookies set
+            except Exception as e:
+                delay = 3.0 * (2 ** attempt) + random.uniform(0, 1)
+                print(f"    [!] Bootstrap attempt {attempt + 1}/3 failed: {e}")
+                if attempt < 2:
+                    print(f"        Retrying in {delay:.1f}s...")
+                    time.sleep(delay)
+                else:
+                    print("    [!] Bootstrap failed after 3 attempts — proceeding without session cookies.")
 
     def _build_params(self, start: int, length: int, echo: int) -> dict:
         return {
