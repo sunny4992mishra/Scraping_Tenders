@@ -17,7 +17,8 @@ from dateutil import parser as dateutil_parser
 load_dotenv()
 
 MAX_CAPTCHA_ATTEMPTS = 5
-LOCAL_OCR_URL = os.getenv("Ocr_url")  # supports both casing variants
+LOCAL_OCR_URL = os.getenv("OCR_URL") or os.getenv("Ocr_url")  # supports both casing variants
+PROXY_URL = os.getenv("PROXY_URL")  # e.g. http://user:pass@host:port
 
 PORTALS = [
     {"base": "https://mahatenders.gov.in",      "portal": "mahatenders",           "state": "Maharashtra"},
@@ -93,17 +94,10 @@ def normalize_value(val_str):
         return None
 
 def extract_metadata(raw_text):
-    """Extract Tender ID and NIT/Reference No from raw cell text."""
-    
-    # Updated: Added re.IGNORECASE and changed [^\s\]] to [^\n\r\]] to allow spaces
     tender_id_match = re.search(r'Tender\s*ID\s*[:\-]\s*([^\n\r\]]+)', raw_text, re.IGNORECASE)
-    
     if not tender_id_match:
-        # Fallback: standard NICGEP format e.g. 2026_MCGM_123456_1
         tender_id_match = re.search(r'(20[1-3][0-9]_[A-Z0-9_]+_\d+)', raw_text, re.IGNORECASE)
-        
     nit_match = re.search(r'Reference\s*No\s*[:\-]\s*([^\n\r\]]+)', raw_text, re.IGNORECASE)
-    
     return {
         "tender_id":  tender_id_match.group(1).strip() if tender_id_match else None,
         "nit_number": nit_match.group(1).strip()       if nit_match       else None,
@@ -365,6 +359,7 @@ if __name__ == "__main__":
     print("[*] Config check:")
     print(f"    OCR_URL set:       {'YES → ' + LOCAL_OCR_URL if LOCAL_OCR_URL else 'NO ← THIS WILL BREAK CAPTCHA'}")
     print(f"    DATABASE_URL set:  {'YES' if os.getenv('DATABASE_URL') else 'NO'}")
+    print(f"    PROXY_URL set:     {'YES' if PROXY_URL else 'NO (using direct Railway IP)'}")
 
     grand_total = 0
 
@@ -372,15 +367,18 @@ if __name__ == "__main__":
         print("[*] Launching browser (headless)...")
         browser = p.chromium.launch(
             headless=True,
+            proxy={"server": PROXY_URL} if PROXY_URL else None,
             args=[
                 "--headless=new",
                 "--no-sandbox",
                 "--disable-gpu",
                 "--disable-dev-shm-usage",
                 "--disable-extensions",
-                "--disable-images",
-                "--blink-settings=imagesEnabled=False",  # FIX 13: note: --disable-images blocks CAPTCHA too!
                 "--single-process",
+                # NOTE: --disable-images / --blink-settings=imagesEnabled=false intentionally
+                # removed — they block CAPTCHA images at the Chromium level, causing OCR to
+                # receive a blank PNG and return ''. The route_handler below handles bandwidth
+                # savings by blocking media/fonts/stylesheets instead.
             ]
         )
 

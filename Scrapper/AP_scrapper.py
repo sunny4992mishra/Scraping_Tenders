@@ -90,6 +90,13 @@ class APTenderScraper:
 
     def __init__(self):
         self.session = requests.Session()
+        proxy_url = os.getenv("PROXY_URL")
+        if proxy_url:
+            self.session.proxies = {"http": proxy_url, "https": proxy_url}
+            self.session.verify = False  # Bright Data residential proxy uses self-signed cert
+            print(f"[*] Proxy configured: {proxy_url[:30]}...")
+        else:
+            print("[!] WARNING: No PROXY_URL set — Railway IPs may be blocked by the portal.")
         self._bootstrap()
 
     def _bootstrap(self):
@@ -242,7 +249,8 @@ class APTenderScraper:
                 data = self._fetch_page(start=start, length=PAGE_SIZE, echo=echo)
             except RuntimeError as e:
                 print(f"    [-] Fetch failed: {e} — stopping.")
-                break
+                print(f"    [→] Saving {len(results)} records collected before failure.")
+                return results
 
             rows = data.get("aaData", [])
             if not rows:
