@@ -14,8 +14,8 @@ from dateutil import parser as dateutil_parser
 
 load_dotenv()
 
-BASE_URL = "https://tender.apeprocurement.gov.in/"
-HOME_URL = f"{BASE_URL}/TenderDetailsHome.html#"
+BASE_URL = "http://tender.apeprocurement.gov.in"
+HOME_URL = f"{BASE_URL}/TenderDetailsHome.html"
 API_URL  = f"{BASE_URL}/TenderDetailsHomeJson.html"
 
 SOURCE_PORTAL  = "ap_eprocurement"
@@ -90,10 +90,11 @@ class APTenderScraper:
 
     def __init__(self):
         self.session = requests.Session()
+        self.session.verify = False  # portal does mixed HTTP/HTTPS redirects
         proxy_url = os.getenv("PROXY_URL")
         if proxy_url:
             self.session.proxies = {"http": proxy_url, "https": proxy_url}
-            self.session.verify = False  # Bright Data residential proxy uses self-signed cert
+
             print(f"[*] Proxy configured: {proxy_url[:30]}...")
         else:
             print("[!] WARNING: No PROXY_URL set — Railway IPs may be blocked by the portal.")
@@ -317,8 +318,6 @@ class APTenderScraper:
 
         print(f"\n[✓] Scrape complete — {total_scraped} records within {BACKFILL_DAYS}-day window")
         return results
-
-
 # ── DB upsert ──────────────────────────────────────────────────────────────────
 
 COLUMNS = [
