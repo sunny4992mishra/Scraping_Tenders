@@ -1,0 +1,196 @@
+
+<style>
+  h2.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+  .wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{background:var(--color-background-tertiary);color:var(--color-text-tertiary);font-weight:500;letter-spacing:.06em;text-transform:uppercase;padding:7px 10px;text-align:left;white-space:nowrap;border-bottom:0.5px solid var(--color-border-tertiary)}
+  td{padding:6px 10px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary);vertical-align:top;line-height:1.5}
+  td.field{font-family:var(--font-mono);color:var(--color-text-primary);white-space:nowrap;font-size:11px}
+  td.type{font-family:var(--font-mono);color:var(--color-text-tertiary);white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .null{color:var(--color-text-tertiary);font-style:italic}
+  .section{background:var(--color-background-secondary)}
+  .sec-label{font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-tertiary);padding:8px 10px 4px;border-bottom:0.5px solid var(--color-border-tertiary)}
+</style>
+
+<h2 class="sr-only">Unified schema field mapping across all portal formats</h2>
+
+<div class="wrap">
+<table>
+<thead>
+<tr>
+  <th>Unified field</th>
+  <th>Type</th>
+  <th>CPPP</th>
+  <th>GeM</th>
+  <th>AP Portal (JSON)</th>
+  <th>State portals</th>
+  <th>IREPS</th>
+</tr>
+</thead>
+<tbody>
+
+<tr><td colspan="7" class="sec-label">Identity</td></tr>
+<tr>
+  <td class="field">id</td>
+  <td class="type">TEXT PK</td>
+  <td>SHA-256(cppp::tender_id)</td>
+  <td>SHA-256(gem::Bid Number)</td>
+  <td>SHA-256(ap::tender_number)</td>
+  <td>SHA-256(portal::Tender ID)</td>
+  <td>SHA-256(ireps::Tender ID)</td>
+</tr>
+<tr>
+  <td class="field">tender_ref_no</td>
+  <td class="type">TEXT</td>
+  <td>tender_id col</td>
+  <td>Bid / RA Number</td>
+  <td>tender_number</td>
+  <td>Tender ID col</td>
+  <td>Tender ID col</td>
+</tr>
+<tr>
+  <td class="field">nit_number</td>
+  <td class="type">TEXT</td>
+  <td>tender_ref_no col</td>
+  <td class="null">null</td>
+  <td>nit_number</td>
+  <td>Notice/IFB Number</td>
+  <td>Notice/IFB Number</td>
+</tr>
+<tr>
+  <td class="field">source_portal</td>
+  <td class="type">TEXT</td>
+  <td>"cppp"</td>
+  <td>"gem"</td>
+  <td>"ap_eprocurement"</td>
+  <td>"mahatenders" etc.</td>
+  <td>"ireps"</td>
+</tr>
+<tr>
+  <td class="field">source_url</td>
+  <td class="type">TEXT</td>
+  <td>Tender URL col</td>
+  <td>build from bid no.</td>
+  <td>build from tender_number</td>
+  <td>Tender URL col</td>
+  <td>build from Tender ID</td>
+</tr>
+
+<tr><td colspan="7" class="sec-label">What</td></tr>
+<tr>
+  <td class="field">title</td>
+  <td class="type">TEXT</td>
+  <td>Title col</td>
+  <td>Items / Category</td>
+  <td>title field</td>
+  <td>Tender Title col</td>
+  <td>Name of Work</td>
+</tr>
+<tr>
+  <td class="field">category</td>
+  <td class="type">TEXT</td>
+  <td>infer from title</td>
+  <td>Items / Category → classify</td>
+  <td>category → "works"</td>
+  <td>Category col</td>
+  <td>infer from title</td>
+</tr>
+
+<tr><td colspan="7" class="sec-label">Who</td></tr>
+<tr>
+  <td class="field">buyer_name</td>
+  <td class="type">TEXT</td>
+  <td>organisation col</td>
+  <td>Department Name</td>
+  <td>department (last segment)</td>
+  <td>Department Name col</td>
+  <td>Department/Location</td>
+</tr>
+<tr>
+  <td class="field">buyer_org_chain</td>
+  <td class="type">TEXT</td>
+  <td>Organisation Chain col</td>
+  <td>Ministry >> Department</td>
+  <td>full department string</td>
+  <td class="null">null mostly</td>
+  <td class="null">null</td>
+</tr>
+<tr>
+  <td class="field">state</td>
+  <td class="type">TEXT</td>
+  <td>derive from org chain</td>
+  <td class="null">null (central)</td>
+  <td>"AP" (hardcode per portal)</td>
+  <td>hardcode per portal</td>
+  <td class="null">null (central)</td>
+</tr>
+
+<tr><td colspan="7" class="sec-label">Money</td></tr>
+<tr>
+  <td class="field">value</td>
+  <td class="type">NUMERIC</td>
+  <td>Tender Value (₹) col → strip ₹,</td>
+  <td>from detail page</td>
+  <td>tender_value → strip ₹,</td>
+  <td>Estimated Value (ECV)</td>
+  <td>Estimated Value (₹)</td>
+</tr>
+<tr>
+  <td class="field">currency</td>
+  <td class="type">TEXT</td>
+  <td colspan="5" style="color:var(--color-text-tertiary)">Always hardcode "INR" for all Indian portals</td>
+</tr>
+
+<tr><td colspan="7" class="sec-label">Dates → always ISO 8601 TIMESTAMPTZ</td></tr>
+<tr>
+  <td class="field">published_at</td>
+  <td class="type">TIMESTAMPTZ</td>
+  <td>e-Published Date</td>
+  <td>Start Date (IST)</td>
+  <td>published_date</td>
+  <td>Published Date col</td>
+  <td class="null">null (not always given)</td>
+</tr>
+<tr>
+  <td class="field">deadline_at</td>
+  <td class="type">TIMESTAMPTZ</td>
+  <td>Bid Submission Closing Date</td>
+  <td>End Date (IST)</td>
+  <td>closing_date</td>
+  <td>Closing Date col</td>
+  <td>Submission Deadline</td>
+</tr>
+<tr>
+  <td class="field">opening_at</td>
+  <td class="type">TIMESTAMPTZ</td>
+  <td>Tender Opening Date</td>
+  <td class="null">null</td>
+  <td class="null">null</td>
+  <td>Tender Opening Date col</td>
+  <td class="null">null</td>
+</tr>
+
+<tr><td colspan="7" class="sec-label">Status</td></tr>
+<tr>
+  <td class="field">status</td>
+  <td class="type">TEXT</td>
+  <td>derive from deadline_at</td>
+  <td>derive from deadline_at</td>
+  <td>derive from deadline_at</td>
+  <td>Status col if present</td>
+  <td>derive from deadline_at</td>
+</tr>
+<tr>
+  <td class="field">corrigendum</td>
+  <td class="type">BOOLEAN</td>
+  <td>Corrigendum col ≠ N/A</td>
+  <td class="null">false</td>
+  <td class="null">false</td>
+  <td>Corrigendum col if present</td>
+  <td class="null">false</td>
+</tr>
+
+</tbody>
+</table>
+</div>
