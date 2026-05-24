@@ -369,7 +369,7 @@ if __name__ == "__main__":
     print(f"    Ocr_url set:      {'YES' if LOCAL_OCR_URL else 'NO ← THIS WILL BREAK CAPTCHA'}")
     print(f"    DATABASE_URL set: {'YES' if os.getenv('DATABASE_URL') else 'NO'}")
     print(f"    PROXY_URL set:    {'YES' if PROXY_URL else 'NO'}")
-    print(f"    LOCAL_DEV:        {LOCAL_DEV}")
+    
 
     grand_total = 0
 
