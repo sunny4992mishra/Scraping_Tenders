@@ -4,7 +4,7 @@ import time
 import json
 import hashlib
 import gc
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import requests
 from playwright.sync_api import sync_playwright
@@ -18,16 +18,14 @@ load_dotenv()
 
 MAX_CAPTCHA_ATTEMPTS = 5
 LOCAL_OCR_URL = os.getenv("Ocr_url") or os.getenv("OCR_URL")
-PROXY_URL     = os.getenv("PROXY_URL")  # http://user:pass@host:port
-
 
 PORTALS = [
-    {"base": "https://mahatenders.gov.in",      "portal": "mahatenders",           "state": "Maharashtra"},
-    {"base": "https://tntenders.gov.in",         "portal": "tntenders",             "state": "Tamil Nadu"},
-    {"base": "https://etender.up.nic.in",        "portal": "up_eprocurement",       "state": "Uttar Pradesh"},
-    {"base": "https://wbtenders.gov.in",         "portal": "wbtenders",             "state": "West Bengal"},
-    {"base": "https://eproc.rajasthan.gov.in",   "portal": "rajasthan_eprocurement","state": "Rajasthan"},
-    {"base": "https://etenders.kerala.gov.in",   "portal": "kerala_tenders",        "state": "Kerala"},
+    {"base": "https://mahatenders.gov.in",      "portal": "mahatenders",            "state": "Maharashtra"},
+    {"base": "https://tntenders.gov.in",         "portal": "tntenders",              "state": "Tamil Nadu"},
+    {"base": "https://etender.up.nic.in",        "portal": "up_eprocurement",        "state": "Uttar Pradesh"},
+    {"base": "https://wbtenders.gov.in",         "portal": "wbtenders",              "state": "West Bengal"},
+    {"base": "https://eproc.rajasthan.gov.in",   "portal": "rajasthan_eprocurement", "state": "Rajasthan"},
+    {"base": "https://etenders.kerala.gov.in",   "portal": "kerala_tenders",         "state": "Kerala"},
 ]
 
 COLUMNS = [
@@ -50,29 +48,16 @@ INSERT_SQL = f"""
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def build_playwright_proxy(proxy_url):
-    """Playwright requires credentials split out — it won't parse them from the URL itself."""
-    if not proxy_url:
-        return None
-    p = urlparse(proxy_url)
-    proxy = {"server": f"{p.scheme}://{p.hostname}:{p.port}"}
-    if p.username:
-        proxy["username"] = p.username
-    if p.password:
-        proxy["password"] = p.password
-    return proxy
-
 def solve_captcha_via_local_api(image_bytes):
-    """Send captcha image bytes to the hosted OCR server, return predicted text."""
     if not LOCAL_OCR_URL:
         print("    [-] Ocr_url env var is not set! Cannot solve CAPTCHA.")
         return None
     print(f"    [*] Sending CAPTCHA to OCR server: {LOCAL_OCR_URL}")
     try:
-        files = {"file": ("captcha.png", image_bytes, "image/png")}
+        files    = {"file": ("captcha.png", image_bytes, "image/png")}
         response = requests.post(LOCAL_OCR_URL, files=files, timeout=10)
         response.raise_for_status()
-        data = response.json()
+        data       = response.json()
         prediction = data.get("prediction") if data.get("status") == "success" else None
         print(f"    [*] OCR response: status={data.get('status')}, prediction={repr(prediction)}")
         return prediction
@@ -105,7 +90,6 @@ def normalize_value(val_str):
         return None
 
 def extract_metadata(raw_text):
-    """Extract Tender ID and NIT/Reference No from raw cell text."""
     tender_id_match = re.search(r'Tender\s*ID\s*[:\-]\s*([^\n\r\]]+)', raw_text, re.IGNORECASE)
     if not tender_id_match:
         tender_id_match = re.search(r'(20[1-3][0-9]_[A-Z0-9_]+_\d+)', raw_text, re.IGNORECASE)
@@ -123,31 +107,33 @@ def extract_buyer_name(org_chain):
 # ── Scraper Core ──────────────────────────────────────────────────────────────
 
 def scrape_portal(page, config):
-    """
-    Scrapes one portal for tenders published within the last 1 day.
-    Upserts directly per-page to avoid accumulating a large list in memory.
-    Returns total record count for logging.
-    """
     print(f"\n{'='*60}")
     print(f"[*] SCRAPING: {config['state']} ({config['portal']})")
     print(f"{'='*60}")
 
     target_url = f"{config['base']}/nicgep/app?page=FrontEndLatestActiveTenders&service=page"
-
     print(f"[*] Navigating to: {target_url}")
-    try:
-        page.goto(target_url, timeout=30000)
-        page.wait_for_load_state("networkidle", timeout=30000)
-    except Exception as e:
-        print(f"[-] Page load failed: {repr(e)}")
+
+    loaded = False
+    for nav_attempt in range(1, 3):  # 2 attempts before giving up
+        try:
+            page.goto(target_url, wait_until="load", timeout=60000)
+            loaded = True
+            break
+        except Exception as e:
+            print(f"[-] Page load attempt {nav_attempt}/2 failed: {repr(e)}")
+            if nav_attempt < 2:
+                print("[*] Retrying after 5s...")
+                time.sleep(5)
+
+    if not loaded:
+        print(f"[-] Could not load {config['state']} after 2 attempts. Skipping.")
         return 0
 
     print(f"[*] Page title: '{page.title()}'")
-
-    # ── CAPTCHA Bypass ────────────────────────────────────────────────────────
-    # Wait for JS to render before starting CAPTCHA detection
     page.wait_for_timeout(3000)
 
+    # ── CAPTCHA Bypass ────────────────────────────────────────────────────────
     captcha_solved = False
     for attempt in range(1, MAX_CAPTCHA_ATTEMPTS + 1):
         print(f"[*] CAPTCHA attempt {attempt}/{MAX_CAPTCHA_ATTEMPTS}...")
@@ -158,8 +144,7 @@ def scrape_portal(page, config):
 
         if "APPLICATION SECURITY ERROR" in page.content():
             print("[!] Security session wall hit. Resetting...")
-            page.goto(target_url)
-            page.wait_for_load_state("networkidle")
+            page.goto(target_url, wait_until="load", timeout=60000)
             page.wait_for_timeout(3000)
 
         try:
@@ -184,7 +169,7 @@ def scrape_portal(page, config):
                 snippet = page.content()[:1000].replace("\n", " ").strip()
                 print(f"    [*] Current page HTML: {snippet}")
                 page.reload()
-                page.wait_for_load_state("networkidle")
+                page.wait_for_load_state("load", timeout=60000)
                 page.wait_for_timeout(3000)
                 continue
 
@@ -195,7 +180,7 @@ def scrape_portal(page, config):
             if not captcha_text or len(captcha_text) < 3:
                 print(f"    [-] OCR returned unusable text: {repr(captcha_text)} — reloading.")
                 page.reload()
-                page.wait_for_load_state("networkidle")
+                page.wait_for_load_state("load", timeout=60000)
                 continue
 
             input_box = page.locator("input[type='text'][name*='captcha'], input[id*='captcha']")
@@ -211,7 +196,7 @@ def scrape_portal(page, config):
             time.sleep(2)
 
             page.reload()
-            page.wait_for_load_state("networkidle")
+            page.wait_for_load_state("load", timeout=60000)
 
             tender_rows = page.locator("tr[id^='informal'], table#table").count()
             print(f"    [*] Tender rows found after submit: {tender_rows}")
@@ -221,7 +206,7 @@ def scrape_portal(page, config):
                 captcha_solved = True
                 break
             else:
-                print(f"    [-] CAPTCHA submit did not reveal tender rows. Retrying...")
+                print("    [-] CAPTCHA submit did not reveal tender rows. Retrying...")
 
         except Exception as e:
             print(f"[-] Attempt {attempt} failed: {repr(e)}. Retrying...")
@@ -232,9 +217,9 @@ def scrape_portal(page, config):
         return 0
     # ── End CAPTCHA Bypass ────────────────────────────────────────────────────
 
-    cutoff   = datetime.now(timezone.utc) - timedelta(days=1)
-    now_utc  = datetime.now(timezone.utc)
-    page_num = 1
+    cutoff         = datetime.now(timezone.utc) - timedelta(days=1)
+    now_utc        = datetime.now(timezone.utc)
+    page_num       = 1
     total_inserted = 0
 
     while True:
@@ -247,7 +232,7 @@ def scrape_portal(page, config):
             print("[-] No table rows found. Stopping.")
             break
 
-        page_records  = []
+        page_records   = []
         reached_cutoff = False
 
         for row in rows:
@@ -270,11 +255,11 @@ def scrape_portal(page, config):
                 print(f"    [!] Skipping row: no ID found in -> '{title_cell_text[:60]}...'")
                 continue
 
-            link_tag      = cols[4].find("a", id=re.compile(r"^DirectLink"))
+            link_tag     = cols[4].find("a", id=re.compile(r"^DirectLink"))
             if not link_tag:
-                link_tag  = cols[4].find("a")
-            tender_title  = link_tag.text.strip().strip("[]") if link_tag else title_cell_text
-            tender_url    = urljoin(config["base"], link_tag.get("href", "")) if link_tag else ""
+                link_tag = cols[4].find("a")
+            tender_title = link_tag.text.strip().strip("[]") if link_tag else title_cell_text
+            tender_url   = urljoin(config["base"], link_tag.get("href", "")) if link_tag else ""
 
             deadline_dt = normalize_date(cols[2].text.strip())
             opening_dt  = normalize_date(cols[3].text.strip())
@@ -315,7 +300,7 @@ def scrape_portal(page, config):
         next_btn = page.locator("a#linkFwd, a#LinkFwd, a:has-text('Next')").first
         if next_btn.is_visible():
             next_btn.click()
-            page.wait_for_load_state("networkidle")
+            page.wait_for_load_state("load", timeout=60000)
             time.sleep(2)
             page_num += 1
         else:
@@ -329,10 +314,6 @@ def scrape_portal(page, config):
 # ── DB Upsert ─────────────────────────────────────────────────────────────────
 
 def upsert(records: list[dict]):
-    """
-    Deduplicates and upserts a batch of records into the tenders table.
-    Uses the locked COLUMNS list to guarantee tuple order matches the SQL.
-    """
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         print("[!] DATABASE_URL not set — skipping DB insert.")
@@ -366,21 +347,15 @@ def upsert(records: list[dict]):
 
 if __name__ == "__main__":
     print("[*] Config check:")
-    print(f"    Ocr_url set:      {'YES' if LOCAL_OCR_URL else 'NO ← THIS WILL BREAK CAPTCHA'}")
+    print(f"    OCR_URL set:      {'YES' if LOCAL_OCR_URL else 'NO ← THIS WILL BREAK CAPTCHA'}")
     print(f"    DATABASE_URL set: {'YES' if os.getenv('DATABASE_URL') else 'NO'}")
-    print(f"    PROXY_URL set:    {'YES' if PROXY_URL else 'NO'}")
-    
 
     grand_total = 0
 
     with sync_playwright() as p:
-        
-        
-        # ── Railway: headless Chromium with proxy + bandwidth optimisations ──
-        print("[*] Launching browser (Railway / headless)...")
+        print("[*] Launching browser (headless)...")
         browser = p.chromium.launch(
             headless=True,
-            proxy=build_playwright_proxy(PROXY_URL),
             args=[
                 "--headless=new",
                 "--no-sandbox",
@@ -388,13 +363,9 @@ if __name__ == "__main__":
                 "--disable-dev-shm-usage",
                 "--disable-extensions",
                 "--single-process",
-                # NOTE: --disable-images intentionally absent — it blocks CAPTCHA images
             ],
         )
-        context = browser.new_context(
-            viewport={"width": 1280, "height": 800},
-            ignore_https_errors=True,   # proxy presents its own cert for HTTPS
-        )
+        context = browser.new_context(viewport={"width": 1280, "height": 800})
         # Block heavy resources to save bandwidth; images kept for CAPTCHA
         context.route(
             "**/*",
@@ -413,4 +384,4 @@ if __name__ == "__main__":
 
         browser.close()
 
-    print(f"\n🎉 ALL DONE. {grand_total} total records upserted across all portals.")
+    print(f"\n[✓] ALL DONE. {grand_total} total records upserted across all portals.")

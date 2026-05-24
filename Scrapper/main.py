@@ -2,11 +2,11 @@ import subprocess
 import sys
  
 SCRAPERS = [
-    "AP_scrapper.py",
+   
     "CPPP_SCRAPER.PY",
     "kpp_Scrapper.py",
-    "Telangana_scrapper.py",
-    "unified_Scrapper.py",
+    "Telangana_scrapper.py"
+    
 ]
  
 for script in SCRAPERS:

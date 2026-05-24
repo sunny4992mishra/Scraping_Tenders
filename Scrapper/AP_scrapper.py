@@ -14,15 +14,15 @@ from dateutil import parser as dateutil_parser
 
 load_dotenv()
 
-BASE_URL = "http://tender.apeprocurement.gov.in"
-HOME_URL = f"{BASE_URL}/TenderDetailsHome.html"
-API_URL  = f"{BASE_URL}/TenderDetailsHomeJson.html"
+BASE_URL  = "https://tender.apeprocurement.gov.in/"
+HOME_URL  = f"{BASE_URL}/TenderDetailsHome.html"
+API_URL   = f"{BASE_URL}/TenderDetailsHomeJson.html"
 
-SOURCE_PORTAL  = "ap_eprocurement"
-BACKFILL_DAYS  = 1
-PAGE_SIZE      = 20
-MAX_PAGES      = 150    # hard ceiling — 150 × 20 = 3000 records max
-PAGE_DELAY     = 1.5
+SOURCE_PORTAL = "ap_eprocurement"
+BACKFILL_DAYS = 1
+PAGE_SIZE     = 20
+MAX_PAGES     = 150
+PAGE_DELAY    = 1.5
 
 USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
@@ -56,23 +56,17 @@ def normalize_value(val_str):
         return None
 
 def derive_status(deadline_dt):
-    """
-    AP portal doesn't give explicit status — derive from deadline.
-    Returns unified schema values: open | closed
-    """
     if not deadline_dt:
         return "unknown"
     return "open" if deadline_dt > datetime.now(tz=timezone.utc) else "closed"
 
 def extract_buyer_name(org_chain):
-    """Last segment of org chain is the most specific buyer name."""
     if not org_chain:
         return None
     parts = [p.strip() for p in re.split(r">>|-(?!>)|,", org_chain)]
     return parts[-1] if parts else org_chain
 
 def classify_category(raw_category: str) -> str:
-    """Normalise AP portal category text → unified schema values."""
     if not raw_category:
         return "unknown"
     c = raw_category.strip().upper()
@@ -84,36 +78,19 @@ def classify_category(raw_category: str) -> str:
     }
     return mapping.get(c, "unknown")
 
-# ── Scraper class ──────────────────────────────────────────────────────────────
+# ── Scraper ────────────────────────────────────────────────────────────────────
 
 class APTenderScraper:
 
     def __init__(self):
         self.session = requests.Session()
-        self.session.verify = False  # portal does mixed HTTP/HTTPS redirects
-        proxy_url = os.getenv("PROXY_URL")
-        if proxy_url:
-            self.session.proxies = {"http": proxy_url, "https": proxy_url}
-
-            print(f"[*] Proxy configured: {proxy_url[:30]}...")
-        else:
-            print("[!] WARNING: No PROXY_URL set — Railway IPs may be blocked by the portal.")
         self._bootstrap()
 
     def _bootstrap(self):
         print("[*] Bootstrapping session...")
         self.session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
-        for attempt in range(3):
-            try:
-                resp = self.session.get(HOME_URL, timeout=30)
-                print(f"    Homepage: HTTP {resp.status_code}")
-                print(f"    Cookies : {dict(self.session.cookies)}")
-                return
-            except Exception as e:
-                delay = 5 * (2 ** attempt)
-                print(f"    [!] Bootstrap attempt {attempt+1} failed: {e} — retrying in {delay}s")
-                time.sleep(delay)
-        print("    [!] Bootstrap failed after 3 attempts — proceeding without session cookies.")
+        resp = self.session.get(HOME_URL, timeout=30)
+        print(f"    Homepage: HTTP {resp.status_code}")
 
     def _build_params(self, start: int, length: int, echo: int) -> dict:
         return {
@@ -135,7 +112,7 @@ class APTenderScraper:
             "hdnEncryptNames": "hdnEncryptNames",
             "hdnEncryptValues": "hdnEncryptValues",
             "sEcho": str(echo), "iColumns": "9", "sColumns": ",,,,,,,,",
-            "iDisplayStart": str(start),        
+            "iDisplayStart": str(start),
             "iDisplayLength": str(length),
             "mDataProp_0": "0", "bSortable_0": "true",
             "mDataProp_1": "1", "bSortable_1": "true",
@@ -146,9 +123,9 @@ class APTenderScraper:
             "mDataProp_6": "6", "bSortable_6": "true",
             "mDataProp_7": "7", "bSortable_7": "true",
             "mDataProp_8": "8", "bSortable_8": "false",
-            "iSortCol_0": "6", "sSortDir_0": "desc",   # FIXED: Now correctly sorts by published_date desc
+            "iSortCol_0": "6", "sSortDir_0": "desc",
             "iSortingCols": "1",
-            "_": str(int(time.time() * 1000))
+            "_": str(int(time.time() * 1000)),
         }
 
     def _fetch_page(self, start: int, length: int, echo: int) -> dict:
@@ -183,7 +160,6 @@ class APTenderScraper:
         if not raw:
             raise RuntimeError("Empty response from API.")
 
-        # AP portal returns Base64-encoded JSON
         try:
             decoded = base64.b64decode(raw).decode("utf-8")
         except Exception as e:
@@ -192,9 +168,7 @@ class APTenderScraper:
         try:
             return json.loads(decoded)
         except Exception as e:
-            with open("ap_debug.txt", "w", encoding="utf-8") as f:
-                f.write(decoded)
-            raise RuntimeError(f"JSON parse failed: {e} — saved to ap_debug.txt")
+            raise RuntimeError(f"JSON parse failed: {e}")
 
     def _extract_ids(self, html: str) -> dict:
         match = re.search(r"viewBtn\((\d+),(\d+),(\d+)\)", html or "")
@@ -206,10 +180,8 @@ class APTenderScraper:
             "tender_id":        match.group(3),
         }
 
-    
     def _parse_row(self, row: list) -> dict:
         ids = self._extract_ids(row[-1])
-        print(f"    [DEBUG] raw dates → published: '{row[6]}' | closing: '{row[7]}'")
         return {
             "department":     row[0],
             "tender_number":  row[1],
@@ -222,19 +194,12 @@ class APTenderScraper:
             "ids":            ids,
         }
 
-    # ── Main scrape loop ───────────────────────────────────────────────────────
-
     def scrape(self) -> list[dict]:
         cutoff = datetime.now(timezone.utc) - timedelta(days=BACKFILL_DAYS)
+        print(f"[*] Starting scrape — cutoff: {cutoff.strftime('%Y-%m-%d %H:%M UTC')}")
 
-        print(f"\n{'='*60}")
-        print(f"  AP eProcurement Scraper — {BACKFILL_DAYS}-day backfill")
-        print(f"  Cutoff : {cutoff.strftime('%Y-%m-%d %H:%M UTC')}")
-        print(f"  Max    : {MAX_PAGES} pages × {PAGE_SIZE} = {MAX_PAGES*PAGE_SIZE} records")
-        print(f"{'='*60}\n")
-
-        results       = []
-        total_scraped = 0
+        results        = []
+        total_scraped  = 0
         reached_cutoff = False
 
         for page_num in range(MAX_PAGES):
@@ -243,22 +208,18 @@ class APTenderScraper:
 
             start = page_num * PAGE_SIZE
             echo  = page_num + 1
-
-            print(f"[*] Page {page_num + 1} | offset {start}–{start + PAGE_SIZE - 1}")
+            print(f"[*] Page {page_num + 1} | offset {start}")
 
             try:
                 data = self._fetch_page(start=start, length=PAGE_SIZE, echo=echo)
             except RuntimeError as e:
                 print(f"    [-] Fetch failed: {e} — stopping.")
-                print(f"    [→] Saving {len(results)} records collected before failure.")
-                return results
+                break
 
             rows = data.get("aaData", [])
             if not rows:
-                print(f"    [✓] Empty page — end of results.")
+                print("    [✓] Empty page — end of results.")
                 break
-
-            print(f"    [+] {len(rows)} rows returned.")
 
             page_valid = 0
 
@@ -271,10 +232,8 @@ class APTenderScraper:
 
                 pub_dt = normalize_date(raw["published_date"])
 
-                # ── Cutoff check ───────────────────────────────────────────
                 if pub_dt is not None and pub_dt < cutoff:
-                    print(f"    [✓] Hit cutoff at row {page_valid + 1} "
-                          f"(published {pub_dt.strftime('%Y-%m-%d')}) — stopping.")
+                    print(f"    [✓] Hit cutoff (published {pub_dt.strftime('%Y-%m-%d')}) — stopping.")
                     reached_cutoff = True
                     break
 
@@ -291,7 +250,7 @@ class APTenderScraper:
                     "tender_ref_no":   tender_ref_no,
                     "nit_number":      raw.get("nit_number"),
                     "source_portal":   SOURCE_PORTAL,
-                    "source_url":      f"{HOME_URL}tender_number={tender_ref_no}",
+                    "source_url":      f"{HOME_URL}?tender_number={tender_ref_no}",
                     "title":           raw.get("title"),
                     "category":        classify_category(raw.get("category")),
                     "buyer_name":      extract_buyer_name(buyer_org_chain),
@@ -313,11 +272,13 @@ class APTenderScraper:
                 page_valid    += 1
                 total_scraped += 1
 
-            print(f"    [→] Collected this page: {page_valid}")
+            print(f"    [→] Collected: {page_valid}")
             time.sleep(PAGE_DELAY)
 
-        print(f"\n[✓] Scrape complete — {total_scraped} records within {BACKFILL_DAYS}-day window")
+        print(f"[✓] Scrape complete — {total_scraped} records")
         return results
+
+
 # ── DB upsert ──────────────────────────────────────────────────────────────────
 
 COLUMNS = [
@@ -345,25 +306,22 @@ def upsert(records: list[dict]):
         print("[!] DATABASE_URL not set — skipping DB insert.")
         return
 
-    # ── Deduplication Fix ──
-    # Dictionary comprehension automatically overwrites duplicates, leaving only unique IDs.
     unique_records = {r["id"]: r for r in records}
-    deduped_list = list(unique_records.values())
-    
-    duplicates_removed = len(records) - len(deduped_list)
-    if duplicates_removed > 0:
-        print(f"[*] Cleaned up {duplicates_removed} duplicate rows from the scraped batch.")
+    deduped        = list(unique_records.values())
 
-    print("\n[*] Connecting to PostgreSQL...")
+    removed = len(records) - len(deduped)
+    if removed > 0:
+        print(f"[*] Removed {removed} duplicate rows.")
+
+    print("[*] Connecting to PostgreSQL...")
     conn   = psycopg2.connect(db_url)
     cursor = conn.cursor()
 
     try:
-        # Pass the deduped_list instead of the raw records
-        values = [tuple(r.get(col) for col in COLUMNS) for r in deduped_list]
+        values = [tuple(r.get(col) for col in COLUMNS) for r in deduped]
         extras.execute_values(cursor, INSERT_SQL, values, page_size=100)
         conn.commit()
-        print(f"[✓] {len(deduped_list)} unique records upserted.")
+        print(f"[✓] {len(deduped)} unique records upserted.")
     except Exception as e:
         conn.rollback()
         print(f"[-] DB insert failed: {e}")
@@ -371,6 +329,7 @@ def upsert(records: list[dict]):
     finally:
         cursor.close()
         conn.close()
+
 
 # ── Entry point ────────────────────────────────────────────────────────────────
 
@@ -380,6 +339,6 @@ if __name__ == "__main__":
 
     if not tenders:
         print("[✗] No valid records found. Exiting.")
-        exit()
+        exit(1)
 
     upsert(tenders)
